@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>eCourts Uttarakhand — Analytics Dashboard</title>
+  <meta name="description" content="Interactive analytics dashboard for eCourts Uttarakhand case data — visualizing bail applications, order dates, petitioner trends, and case filing patterns." />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <!-- Chart.js datalabels plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+
+  <style>
+    /* ── RESET & ROOT ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-0:     #080c14;
+      --bg-1:     #0e1523;
+      --bg-2:     #131d30;
+      --bg-card:  #141e35;
+      --border:   rgba(99,140,255,0.13);
+      --border2:  rgba(99,140,255,0.22);
+
+      --accent:   #4f8ef7;
+      --accent2:  #7c3aed;
+      --accent3:  #06b6d4;
+      --accent4:  #f59e0b;
+      --green:    #10b981;
+      --red:      #ef4444;
+      --pink:     #ec4899;
+
+      --text-1:  #f0f6ff;
+      --text-2:  #8fa3c7;
+      --text-3:  #5a7099;
+
+      --glow-blue: 0 0 40px rgba(79,142,247,0.15);
+      --glow-purple: 0 0 40px rgba(124,58,237,0.15);
+
+      --radius:   16px;
+      --radius-sm:10px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-0);
+      color: var(--text-1);
+      min-height: 100vh;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── ANIMATED BACKGROUND GRID ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(79,142,247,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(79,142,247,0.035) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── GRADIENT BLOBS ── */
+    .blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+      animation: blobFloat 12s ease-in-out infinite;
+    }
+    .blob-1 { width: 600px; height: 600px; background: rgba(79,142,247,0.07); top: -200px; left: -200px; }
+    .blob-2 { width: 500px; height: 500px; background: rgba(124,58,237,0.07); bottom: -150px; right: -150px; animation-delay: -6s; }
+    .blob-3 { width: 400px; height: 400px; background: rgba(6,182,212,0.05); top: 40%; left: 40%; animation-delay: -3s; }
+
+    @keyframes blobFloat {
+      0%, 100% { transform: translate(0,0) scale(1); }
+      33% { transform: translate(30px,-20px) scale(1.05); }
+      66% { transform: translate(-20px,30px) scale(0.95); }
+    }
+
+    /* ── MAIN LAYOUT ── */
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 24px 60px;
+    }
+
+    /* ── HEADER ── */
+    header {
+      position: relative;
+      z-index: 10;
+      padding: 36px 0 28px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 36px;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 18px; }
+
+    .logo-icon {
+      width: 52px; height: 52px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 8px 32px rgba(79,142,247,0.35);
+      flex-shrink: 0;
+    }
+
+    .header-title h1 {
+      font-size: clamp(1.3rem, 3vw, 2rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #fff 30%, var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .header-title p {
+      font-size: 0.85rem;
+      color: var(--text-3);
+      margin-top: 3px;
+      font-weight: 400;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .badge-live {
+      background: rgba(16,185,129,0.12);
+      border: 1px solid rgba(16,185,129,0.3);
+      color: var(--green);
+    }
+    .badge-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulseDot 1.5s ease-in-out infinite;
+    }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.7); }
+    }
+    .badge-court {
+      background: rgba(79,142,247,0.1);
+      border: 1px solid rgba(79,142,247,0.2);
+      color: var(--accent);
+    }
+
+    /* ── SECTION HEADER ── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 22px;
+      margin-top: 44px;
+    }
+    .section-header:first-of-type { margin-top: 0; }
+    .section-line {
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, var(--border2), transparent);
+    }
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-3);
+    }
+    .section-icon { font-size: 1rem; }
+
+    /* ── KPI CARDS ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      margin-bottom: 10px;
+    }
+
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 22px;
+      position: relative;
+      overflow: hidden;
+      cursor: default;
+      transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+    }
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--kpi-grad, linear-gradient(135deg, rgba(79,142,247,0.06), transparent));
+      pointer-events: none;
+    }
+    .kpi-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--border2);
+      box-shadow: var(--glow-blue);
+    }
+    .kpi-card.purple { --kpi-grad: linear-gradient(135deg, rgba(124,58,237,0.08), transparent); }
+    .kpi-card.cyan   { --kpi-grad: linear-gradient(135deg, rgba(6,182,212,0.08), transparent); }
+    .kpi-card.amber  { --kpi-grad: linear-gradient(135deg, rgba(245,158,11,0.08), transparent); }
+
+    .kpi-icon {
+      font-size: 1.6rem;
+      margin-bottom: 14px;
+      display: block;
+    }
+    .kpi-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 6px;
+    }
+    .kpi-value {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      font-family: 'JetBrains Mono', monospace;
+      line-height: 1;
+      color: var(--text-1);
+    }
+    .kpi-value span { font-size: 1.1rem; color: var(--text-3); margin-left: 4px; }
+    .kpi-sub {
+      margin-top: 10px;
+      font-size: 0.75rem;
+      color: var(--text-3);
+    }
+    .kpi-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+    .kpi-badge.up   { background: rgba(16,185,129,0.15); color: var(--green); }
+    .kpi-badge.down { background: rgba(239,68,68,0.12); color: var(--red); }
+
+    /* ── CHART CARDS ── */
+    .chart-grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 22px;
+    }
+    .chart-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 22px;
+    }
+    .chart-grid-1-2 {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 22px;
+    }
+
+    @media (max-width: 1000px) {
+      .chart-grid-2,
+      .chart-grid-3,
+      .chart-grid-1-2 { grid-template-columns: 1fr; }
+    }
+
+    .chart-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 26px 24px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    .chart-card:hover {
+      border-color: var(--border2);
+      box-shadow: var(--glow-blue);
+    }
+    .chart-card.full { grid-column: 1 / -1; }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      gap: 12px;
+    }
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-1);
+      letter-spacing: -0.01em;
+    }
+    .card-subtitle {
+      font-size: 0.72rem;
+      color: var(--text-3);
+      margin-top: 3px;
+    }
+    .card-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(79,142,247,0.1);
+      border: 1px solid rgba(79,142,247,0.18);
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+    }
+
+    /* ── INSIGHT BOX ── */
+    .insight-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 10px;
+    }
+
+    .insight-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 20px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .insight-card:hover { transform: translateY(-2px); border-color: var(--border2); }
+
+    .insight-icon-wrap {
+      width: 42px; height: 42px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    .i-blue   { background: rgba(79,142,247,0.15); }
+    .i-purple { background: rgba(124,58,237,0.15); }
+    .i-green  { background: rgba(16,185,129,0.15); }
+    .i-amber  { background: rgba(245,158,11,0.15); }
+    .i-red    { background: rgba(239,68,68,0.12); }
+    .i-cyan   { background: rgba(6,182,212,0.13); }
+
+    .insight-text p:first-child {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-1);
+      margin-bottom: 5px;
+    }
+    .insight-text p:last-child {
+      font-size: 0.75rem;
+      color: var(--text-3);
+      line-height: 1.5;
+    }
+
+    /* ── TABLE ── */
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: var(--radius-sm);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    thead tr { background: rgba(79,142,247,0.07); }
+    thead th {
+      padding: 12px 16px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(79,142,247,0.05); }
+    tbody td { padding: 11px 16px; color: var(--text-2); }
+    tbody td:first-child { font-weight: 600; color: var(--text-1); }
+
+    .bar-inline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .bar-inline-fill {
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    /* ── PROGRESS RING ── */
+    .ring-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 30px;
+      flex-wrap: wrap;
+      padding: 10px 0;
+    }
+    .ring-item { text-align: center; }
+    .ring-svg { transform: rotate(-90deg); }
+    .ring-bg { fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 8; }
+    .ring-progress {
+      fill: none;
+      stroke-width: 8;
+      stroke-linecap: round;
+      stroke-dasharray: 283;
+      stroke-dashoffset: 283;
+      transition: stroke-dashoffset 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .ring-label {
+      font-size: 0.72rem;
+      color: var(--text-3);
+      margin-top: 8px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .ring-val {
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--text-1);
+      font-family: 'JetBrains Mono', monospace;
+      margin-top: 2px;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      position: relative;
+      z-index: 1;
+      border-top: 1px solid var(--border);
+      padding: 22px 24px;
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-3);
+    }
+    footer strong { color: var(--text-2); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes countUp {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    .fade-in { animation: fadeInUp 0.6s ease forwards; }
+    .delay-1 { animation-delay: 0.1s; opacity: 0; }
+    .delay-2 { animation-delay: 0.2s; opacity: 0; }
+    .delay-3 { animation-delay: 0.3s; opacity: 0; }
+    .delay-4 { animation-delay: 0.4s; opacity: 0; }
+    .delay-5 { animation-delay: 0.5s; opacity: 0; }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-0); }
+    ::-webkit-scrollbar-thumb { background: rgba(79,142,247,0.2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(79,142,247,0.4); }
+
+    /* ── TAB NAV ── */
+    .tab-nav {
+      display: flex;
+      gap: 4px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 4px;
+      width: fit-content;
+      margin-bottom: 28px;
+    }
+    .tab-btn {
+      padding: 8px 18px;
+      border-radius: 7px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: var(--text-3);
+      transition: all 0.2s;
+      letter-spacing: 0.03em;
+    }
+    .tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(79,142,247,0.3);
+    }
+
+    /* highlight number */
+    .num-highlight {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+
+<!-- Background blobs -->
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+<div class="blob blob-3"></div>
+
+<div class="container">
+
+  <!-- ═══════════════════════════════════ HEADER ═══════════════════════════════════ -->
+  <header class="fade-in">
+    <div class="header-left">
+      <div class="logo-icon">⚖️</div>
+      <div class="header-title">
+        <h1>eCourts Uttarakhand</h1>
+        <p>High Court Analytics Dashboard · Case Intelligence Platform</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="badge badge-live"><span class="badge-dot"></span>Live Data</span>
+      <span class="badge badge-court">Uttarakhand HC</span>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════ KPI SECTION ═══════════════════════════════════ -->
+  <div class="section-header fade-in delay-1">
+    <span class="section-icon">📊</span>
+    <span class="section-label">Key Performance Indicators</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card fade-in delay-1">
+      <span class="kpi-icon">📁</span>
+      <div class="kpi-label">Total Cases</div>
+      <div class="kpi-value" id="kpi-total">0</div>
+      <div class="kpi-sub">Across all search categories</div>
+    </div>
+    <div class="kpi-card purple fade-in delay-2">
+      <span class="kpi-icon">🔐</span>
+      <div class="kpi-label">Bail Applications</div>
+      <div class="kpi-value" id="kpi-bail">0</div>
+      <div class="kpi-sub"><span class="kpi-badge up">↑ First Bail App.</span></div>
+    </div>
+    <div class="kpi-card cyan fade-in delay-3">
+      <span class="kpi-icon">📋</span>
+      <div class="kpi-label">Cases With Orders</div>
+      <div class="kpi-value" id="kpi-order">0</div>
+      <div class="kpi-sub"><span class="kpi-badge up">55.6% of total</span></div>
+    </div>
+    <div class="kpi-card amber fade-in delay-4">
+      <span class="kpi-icon">👥</span>
+      <div class="kpi-label">Party-Named Cases</div>
+      <div class="kpi-value" id="kpi-party">0</div>
+      <div class="kpi-sub">Petitioner vs Respondent listed</div>
+    </div>
+    <div class="kpi-card fade-in delay-5">
+      <span class="kpi-icon">📅</span>
+      <div class="kpi-label">Cases in 2026</div>
+      <div class="kpi-value" id="kpi-2026">0</div>
+      <div class="kpi-sub"><span class="kpi-badge up">↑ 599% vs 2025</span></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════ CHARTS ROW 1 ═══════════════════════════════════ -->
+  <div class="section-header fade-in">
+    <span class="section-icon">📈</span>
+    <span class="section-label">Case Filing Trends</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="chart-card full fade-in delay-1" style="margin-bottom:22px;">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Cases Filed Per Year (2004–2026)</div>
+        <div class="card-subtitle">Annual case volume with cumulative growth overlay</div>
+      </div>
+      <div class="card-tag">📅 Timeline</div>
+    </div>
+    <div class="chart-wrap" style="height:300px;">
+      <canvas id="chartYearTrend"></canvas>
+    </div>
+  </div>
+
+  <div class="chart-grid-2 fade-in delay-2" style="margin-bottom:22px;">
+    <div class="chart-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Case Type Distribution</div>
+          <div class="card-subtitle">Share of each search category</div>
+        </div>
+        <div class="card-tag">🥧 Donut</div>
+      </div>
+      <div class="chart-wrap" style="height:280px;">
+        <canvas id="chartDonut"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Order Status Overview</div>
+          <div class="card-subtitle">Cases with vs without orders</div>
+        </div>
+        <div class="card-tag">⚡ Status</div>
+      </div>
+      <div class="ring-wrap" style="padding-top:30px;" id="ringWrap">
+        <!-- SVG rings injected by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════ CHARTS ROW 2 ═══════════════════════════════════ -->
+  <div class="section-header fade-in">
+    <span class="section-icon">🔍</span>
+    <span class="section-label">Category & Code Breakdown</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="chart-grid-1-2 fade-in delay-1" style="margin-bottom:22px;">
+    <div class="chart-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Cases by Type</div>
+          <div class="card-subtitle">Horizontal bar comparison</div>
+        </div>
+        <div class="card-tag">📊 Bar</div>
+      </div>
+      <div class="chart-wrap" style="height:260px;">
+        <canvas id="chartTypeBar"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Top 10 Case Codes</div>
+          <div class="card-subtitle">Most common petition/case prefixes</div>
+        </div>
+        <div class="card-tag">🏷️ Codes</div>
+      </div>
+      <div class="chart-wrap" style="height:260px;">
+        <canvas id="chartCodes"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stacked Bar full width -->
+  <div class="chart-card full fade-in delay-2" style="margin-bottom:22px;">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Case Type Breakdown Per Year (Stacked)</div>
+        <div class="card-subtitle">How each category contributed across years 2004–2026</div>
+      </div>
+      <div class="card-tag">📊 Stacked</div>
+    </div>
+    <div class="chart-wrap" style="height:310px;">
+      <canvas id="chartStacked"></canvas>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════ PETITIONERS TABLE ═══════════════════════════════════ -->
+  <div class="section-header fade-in">
+    <span class="section-icon">👤</span>
+    <span class="section-label">Petitioner Analysis</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="chart-grid-2 fade-in delay-1" style="margin-bottom:22px;">
+    <div class="chart-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Top 15 Petitioners</div>
+          <div class="card-subtitle">By number of cases filed</div>
+        </div>
+        <div class="card-tag">👤 Petitioner</div>
+      </div>
+      <div class="table-wrap">
+        <table id="petTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Petitioner Name</th>
+              <th>Cases</th>
+              <th>Share</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Top Respondents</div>
+          <div class="card-subtitle">Most common opposing parties</div>
+        </div>
+        <div class="card-tag">⚔️ Respondent</div>
+      </div>
+      <div class="table-wrap">
+        <table id="respTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Respondent Name</th>
+              <th>Cases</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Petitioners chart -->
+  <div class="chart-card full fade-in delay-2" style="margin-bottom:22px;">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Top 15 Petitioners — Visual Comparison</div>
+        <div class="card-subtitle">Case count per unique petitioner name</div>
+      </div>
+      <div class="card-tag">📊 Ranking</div>
+    </div>
+    <div class="chart-wrap" style="height:380px;">
+      <canvas id="chartPetitioners"></canvas>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════ INSIGHTS ═══════════════════════════════════ -->
+  <div class="section-header fade-in">
+    <span class="section-icon">💡</span>
+    <span class="section-label">Key Insights & Interpretation</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="insight-grid fade-in delay-1">
+    <div class="insight-card">
+      <div class="insight-icon-wrap i-blue">📈</div>
+      <div class="insight-text">
+        <p>Massive Surge in 2026</p>
+        <p>With <span class="num-highlight">1,322</span> cases in 2026 (up to Sept), the court saw a <strong>+599%</strong> increase over all of 2025 (189 cases), suggesting either a backlog clearance drive or a significant rise in filings.</p>
+      </div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-icon-wrap i-purple">⚖️</div>
+      <div class="insight-text">
+        <p>Bail Applications Dominate</p>
+        <p><span class="num-highlight">813</span> First Bail Applications account for <strong>42.4%</strong> of all cases. BA1 (bail) is the single most common case code with 873 occurrences, reflecting significant criminal litigation activity.</p>
+      </div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-icon-wrap i-green">📋</div>
+      <div class="insight-text">
+        <p>Order Coverage at 55.6%</p>
+        <p><span class="num-highlight">1,067</span> cases have associated order dates from 10–15 Sept 2026, while <span class="num-highlight">852</span> cases are still pending orders. This suggests ~44% of matters require judicial attention.</p>
+      </div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-icon-wrap i-amber">🏛️</div>
+      <div class="insight-text">
+        <p>State Is Primary Respondent</p>
+        <p><span class="num-highlight">State of Uttarakhand</span> appears as respondent in <strong>803+</strong> cases, meaning the government is defending the majority of civil/criminal petitions filed before the High Court.</p>
+      </div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-icon-wrap i-red">🔢</div>
+      <div class="insight-text">
+        <p>WPMS & Writ Petitions Rising</p>
+        <p>Writ petitions (WPMS, WPSS, WPCRL, WPSB, WPMB) combined account for <strong>357+ cases</strong>. This signals increasing constitutional and administrative challenges being raised against state authorities.</p>
+      </div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-icon-wrap i-cyan">🌍</div>
+      <div class="insight-text">
+        <p>Party Name Search is Niche</p>
+        <p>Only <span class="num-highlight">39</span> cases were retrieved via the Petitioner/Respondent "Uttrakhand" search — just <strong>2%</strong> of total — indicating that party-name searches yield highly targeted, narrow result sets.</p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<footer>
+  <strong>eCourts Uttarakhand Analytics Dashboard</strong> · Data sourced from
+  <strong>hcservices.ecourts.gov.in</strong> · 
+  Dataset: <span class="num-highlight">1,919 cases</span> · 
+  Crawled: September 2026 · Built for academic analysis
+</footer>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     DATA & CHART SCRIPTS
+══════════════════════════════════════════════════════════════════ -->
+<script>
+/* ── RAW DATA ── */
+const DATA = {
+  byType: {"10/09/2026-15/09/2026": 1067, "First Bail Application": 813, "Petitioner/Respondant - Uttrakhand": 39},
+  byYear: {"2004":3,"2008":3,"2010":1,"2011":3,"2012":7,"2013":15,"2014":26,"2015":23,"2016":11,"2017":29,"2018":30,"2019":31,"2020":12,"2021":24,"2022":34,"2023":72,"2024":84,"2025":189,"2026":1322},
+  topPet: {"SUNIL KUMAR":7,"KALEEM":5,"ISLAM":5,"BILAL":4,"RAMNATH GUPTA":4,"STATE OF UTTRAKHAND THROUGH COLLECTOR":4,"SUMIT KUMAR":3,"KAMAL SINGH RAWAT":3,"AMIT KUMAR":3,"MALKIT SINGH":3,"SHANU":3,"DEEPAK KUMAR":3,"RAHUL":3,"VISHAL":3,"SAVEJ":3},
+  codes: {"BA1":873,"WPMS":151,"WPSS":117,"AO":109,"WPCRL":101,"C528":78,"CRLR":75,"WPMB":48,"C482":46,"WPSB":41},
+  orderStatus: {"Has Order":1067,"Pending/No Order":852},
+  topResp: {"STATE OF UTTARAKHAND":803,"STATE OF UTTRAKHAND":9,"NARCOTICS CONTROL BUREAU":8,"STATE OF UTTRAKHAND THROUGH COLLECTOR":4,"STATE INDUSTRIAL DEVELOPMENT CORPORATION OF UTTRAKHAND LTD.":2,"MS UTTRAKHAND STONE PRODUCTS PVT LTD":2,"STATE OF UTTRAKHAND THROUGH SECRTORY HOME":1,"SMT. JASODA DEVI":1,"SMT. NASEEMA":1,"ADDITIONAL CHIEF ADMINISTRATOR UTTRAKHAND":1},
+  stacked: {"2004":{"10/09/2026-15/09/2026":3,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":0},"2008":{"10/09/2026-15/09/2026":2,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":1},"2010":{"10/09/2026-15/09/2026":0,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":1},"2011":{"10/09/2026-15/09/2026":3,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":0},"2012":{"10/09/2026-15/09/2026":7,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":0},"2013":{"10/09/2026-15/09/2026":13,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":2},"2014":{"10/09/2026-15/09/2026":26,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":0},"2015":{"10/09/2026-15/09/2026":22,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":1},"2016":{"10/09/2026-15/09/2026":11,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":0},"2017":{"10/09/2026-15/09/2026":21,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":8},"2018":{"10/09/2026-15/09/2026":17,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":13},"2019":{"10/09/2026-15/09/2026":27,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":4},"2020":{"10/09/2026-15/09/2026":9,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":3},"2021":{"10/09/2026-15/09/2026":24,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":0},"2022":{"10/09/2026-15/09/2026":32,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":2},"2023":{"10/09/2026-15/09/2026":69,"First Bail Application":0,"Petitioner/Respondant - Uttrakhand":3},"2024":{"10/09/2026-15/09/2026":82,"First Bail Application":2,"Petitioner/Respondant - Uttrakhand":0},"2025":{"10/09/2026-15/09/2026":87,"First Bail Application":101,"Petitioner/Respondant - Uttrakhand":1},"2026":{"10/09/2026-15/09/2026":612,"First Bail Application":710,"Petitioner/Respondant - Uttrakhand":0}}
+};
+
+/* ── COLOUR PALETTE ── */
+const COLORS = {
+  blue:   '#4f8ef7',
+  purple: '#7c3aed',
+  cyan:   '#06b6d4',
+  amber:  '#f59e0b',
+  green:  '#10b981',
+  pink:   '#ec4899',
+  teal:   '#14b8a6',
+  red:    '#ef4444',
+  indigo: '#6366f1',
+  orange: '#f97316',
+};
+const PALETTE = Object.values(COLORS);
+
+const GRID_COLOR = 'rgba(99,140,255,0.08)';
+const TEXT_COLOR = '#8fa3c7';
+const TEXT_COLOR_BRIGHT = '#c5d5f0';
+
+Chart.defaults.color = TEXT_COLOR;
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size = 12;
+
+/* ── KPI COUNTER ANIMATION ── */
+function animateCount(el, target, duration = 1400, prefix='') {
+  const start = performance.now();
+  const update = (time) => {
+    const t = Math.min((time - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - t, 4);
+    el.textContent = prefix + Math.round(ease * target).toLocaleString();
+    if (t < 1) requestAnimationFrame(update);
+  };
+  requestAnimationFrame(update);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    animateCount(document.getElementById('kpi-total'), 1919);
+    animateCount(document.getElementById('kpi-bail'), 813);
+    animateCount(document.getElementById('kpi-order'), 1067);
+    animateCount(document.getElementById('kpi-party'), 39);
+    animateCount(document.getElementById('kpi-2026'), 1322);
+  }, 300);
+});
+
+/* ── CHART 1: YEAR TREND LINE ── */
+(function() {
+  const years = Object.keys(DATA.byYear);
+  const counts = Object.values(DATA.byYear);
+  let cumul = 0;
+  const cumulCounts = counts.map(v => { cumul += v; return cumul; });
+
+  new Chart(document.getElementById('chartYearTrend'), {
+    data: {
+      labels: years,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Cases Filed',
+          data: counts,
+          backgroundColor: years.map((y, i) => y === '2026' ? COLORS.blue : 'rgba(79,142,247,0.35)'),
+          borderColor: years.map((y, i) => y === '2026' ? COLORS.blue : 'rgba(79,142,247,0.6)'),
+          borderWidth: 1,
+          borderRadius: 5,
+          order: 2,
+          yAxisID: 'y',
+        },
+        {
+          type: 'line',
+          label: 'Cumulative Total',
+          data: cumulCounts,
+          borderColor: COLORS.cyan,
+          backgroundColor: 'rgba(6,182,212,0.07)',
+          borderWidth: 2.5,
+          pointRadius: 3,
+          pointBackgroundColor: COLORS.cyan,
+          tension: 0.35,
+          fill: true,
+          order: 1,
+          yAxisID: 'y2',
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: TEXT_COLOR, usePointStyle: true, pointStyleWidth: 8, font: { size: 11 } } },
+        tooltip: {
+          backgroundColor: '#0e1523',
+          borderColor: 'rgba(79,142,247,0.3)',
+          borderWidth: 1,
+          titleColor: '#f0f6ff',
+          bodyColor: TEXT_COLOR,
+          padding: 12,
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: GRID_COLOR },
+          ticks: { color: TEXT_COLOR, maxRotation: 45 }
+        },
+        y: {
+          position: 'left',
+          grid: { color: GRID_COLOR },
+          ticks: { color: TEXT_COLOR },
+          title: { display: true, text: 'Cases Filed', color: TEXT_COLOR }
+        },
+        y2: {
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          ticks: { color: COLORS.cyan },
+          title: { display: true, text: 'Cumulative', color: COLORS.cyan }
+        }
+      }
+    }
+  });
+})();
+
+/* ── CHART 2: DONUT ── */
+(function() {
+  const labels = Object.keys(DATA.byType).map(l => {
+    if (l.includes('09/2026')) return 'Order Date (Sept 2026)';
+    return l;
+  });
+  const values = Object.values(DATA.byType);
+  const colors = [COLORS.blue, COLORS.purple, COLORS.cyan];
+
+  new Chart(document.getElementById('chartDonut'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+        borderColor: '#141e35',
+        borderWidth: 3,
+        hoverOffset: 10,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '68%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: TEXT_COLOR, usePointStyle: true, padding: 14, font: { size: 11 } }
+        },
+        tooltip: {
+          backgroundColor: '#0e1523',
+          borderColor: 'rgba(79,142,247,0.3)',
+          borderWidth: 1,
+          titleColor: '#f0f6ff',
+          bodyColor: TEXT_COLOR,
+          callbacks: {
+            label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString()} (${((ctx.parsed/1919)*100).toFixed(1)}%)`
+          }
+        }
+      }
+    }
+  });
+})();
+
+/* ── PROGRESS RINGS ── */
+(function() {
+  const wrap = document.getElementById('ringWrap');
+  const items = [
+    { label: 'Has Order', val: 1067, total: 1919, color: COLORS.green },
+    { label: 'Bail Cases', val: 813, total: 1919, color: COLORS.purple },
+    { label: 'No Order', val: 852, total: 1919, color: COLORS.amber },
+  ];
+  const R = 45, C = 2 * Math.PI * R;
+
+  items.forEach(item => {
+    const pct = (item.val / item.total * 100).toFixed(1);
+    const offset = C - (item.val / item.total) * C;
+    const div = document.createElement('div');
+    div.className = 'ring-item';
+    div.innerHTML = `
+      <svg class="ring-svg" width="110" height="110" viewBox="0 0 110 110">
+        <circle class="ring-bg" cx="55" cy="55" r="${R}"/>
+        <circle class="ring-progress" cx="55" cy="55" r="${R}"
+          stroke="${item.color}"
+          stroke-dasharray="${C}"
+          stroke-dashoffset="${C}"
+          data-offset="${offset}"
+        />
+        <text x="55" y="52" text-anchor="middle" fill="#f0f6ff"
+          font-family="JetBrains Mono" font-size="13" font-weight="700"
+          transform="rotate(90,55,55)">${pct}%</text>
+        <text x="55" y="66" text-anchor="middle" fill="#8fa3c7"
+          font-size="9" transform="rotate(90,55,55)">${item.val.toLocaleString()}</text>
+      </svg>
+      <div class="ring-label">${item.label}</div>
+    `;
+    wrap.appendChild(div);
+  });
+
+  // Animate rings
+  setTimeout(() => {
+    document.querySelectorAll('.ring-progress').forEach(circle => {
+      circle.style.strokeDashoffset = circle.dataset.offset;
+    });
+  }, 400);
+})();
+
+/* ── CHART 3: TYPE BAR ── */
+(function() {
+  const labels = ['Order Date\n(Sept 2026)', 'First Bail\nApplication', 'Party Name\n(Uttrakhand)'];
+  const values = [1067, 813, 39];
+  const colors = [COLORS.blue, COLORS.purple, COLORS.cyan];
+
+  new Chart(document.getElementById('chartTypeBar'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+        borderRadius: 8,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0e1523',
+          borderColor: 'rgba(79,142,247,0.3)',
+          borderWidth: 1,
+          titleColor: '#f0f6ff',
+          bodyColor: TEXT_COLOR,
+        }
+      },
+      scales: {
+        x: { grid: { color: GRID_COLOR }, ticks: { color: TEXT_COLOR } },
+        y: { grid: { color: 'transparent' }, ticks: { color: TEXT_COLOR_BRIGHT, font: { size: 11 } } }
+      }
+    }
+  });
+})();
+
+/* ── CHART 4: CASE CODES ── */
+(function() {
+  const labels = Object.keys(DATA.codes);
+  const values = Object.values(DATA.codes);
+
+  new Chart(document.getElementById('chartCodes'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: PALETTE.slice(0, labels.length).map(c => c + 'bb'),
+        borderColor:     PALETTE.slice(0, labels.length),
+        borderWidth: 1.5,
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0e1523',
+          borderColor: 'rgba(79,142,247,0.3)',
+          borderWidth: 1,
+          titleColor: '#f0f6ff',
+          bodyColor: TEXT_COLOR,
+        }
+      },
+      scales: {
+        x: { grid: { color: GRID_COLOR }, ticks: { color: TEXT_COLOR } },
+        y: { grid: { color: GRID_COLOR }, ticks: { color: TEXT_COLOR } }
+      }
+    }
+  });
+})();
+
+/* ── CHART 5: STACKED BAR ── */
+(function() {
+  const years = Object.keys(DATA.stacked);
+  const categories = ['10/09/2026-15/09/2026', 'First Bail Application', 'Petitioner/Respondant - Uttrakhand'];
+  const labels_display = ['Order Date (Sept 2026)', 'First Bail Application', 'Party Name (Uttrakhand)'];
+  const stackColors = [COLORS.blue, COLORS.purple, COLORS.cyan];
+
+  const datasets = categories.map((cat, i) => ({
+    label: labels_display[i],
+    data: years.map(y => DATA.stacked[y][cat] || 0),
+    backgroundColor: stackColors[i] + 'cc',
+    borderColor: stackColors[i],
+    borderWidth: 0.5,
+    stack: 'total',
+    borderRadius: i === 2 ? 4 : 0,
+  }));
+
+  new Chart(document.getElementById('chartStacked'), {
+    type: 'bar',
+    data: { labels: years, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: TEXT_COLOR, usePointStyle: true, font: { size: 11 } } },
+        tooltip: {
+          backgroundColor: '#0e1523',
+          borderColor: 'rgba(79,142,247,0.3)',
+          borderWidth: 1,
+          titleColor: '#f0f6ff',
+          bodyColor: TEXT_COLOR,
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: GRID_COLOR },
+          ticks: { color: TEXT_COLOR, maxRotation: 45 }
+        },
+        y: {
+          stacked: true,
+          grid: { color: GRID_COLOR },
+          ticks: { color: TEXT_COLOR },
+          title: { display: true, text: 'Cases', color: TEXT_COLOR }
+        }
+      }
+    }
+  });
+})();
+
+/* ── CHART 6: PETITIONERS HORIZONTAL BAR ── */
+(function() {
+  const labels = Object.keys(DATA.topPet);
+  const values = Object.values(DATA.topPet);
+  const gradient_colors = labels.map((_, i) => {
+    const t = i / (labels.length - 1);
+    return `hsl(${220 + t * 60}, 80%, ${55 + t * 15}%)`;
+  });
+
+  new Chart(document.getElementById('chartPetitioners'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: gradient_colors,
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0e1523',
+          borderColor: 'rgba(79,142,247,0.3)',
+          borderWidth: 1,
+          titleColor: '#f0f6ff',
+          bodyColor: TEXT_COLOR,
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.x} case${ctx.parsed.x > 1 ? 's' : ''}`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: GRID_COLOR }, ticks: { color: TEXT_COLOR, stepSize: 1 } },
+        y: { grid: { color: 'transparent' }, ticks: { color: TEXT_COLOR_BRIGHT, font: { size: 11 } } }
+      }
+    }
+  });
+})();
+
+/* ── PETITIONER TABLE ── */
+(function() {
+  const totalPet = Object.values(DATA.topPet).reduce((a,b) => a+b, 0);
+  const tbody = document.querySelector('#petTable tbody');
+  Object.entries(DATA.topPet).forEach(([name, count], i) => {
+    const pct = ((count / 1919) * 100).toFixed(2);
+    const barW = Math.round((count / 7) * 100);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td>${name}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent)">${count}</td>
+      <td>
+        <div class="bar-inline">
+          <div class="bar-inline-fill" style="width:${barW}%;min-width:4px"></div>
+          <span style="font-size:0.72rem;color:var(--text-3)">${pct}%</span>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+})();
+
+/* ── RESPONDENT TABLE ── */
+(function() {
+  const tbody = document.querySelector('#respTable tbody');
+  Object.entries(DATA.topResp).forEach(([name, count], i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td>${name}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--cyan, #06b6d4)">${count}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+})();
+
+/* ── SCROLL REVEAL ── */
+(function() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.style.animationPlayState = 'running';
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.fade-in').forEach(el => {
+    el.style.animationPlayState = 'paused';
+    observer.observe(el);
+  });
+})();
+</script>
+</body>
+</html>
